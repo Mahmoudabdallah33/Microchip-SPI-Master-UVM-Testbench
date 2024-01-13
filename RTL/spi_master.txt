@@ -1,0 +1,119 @@
+module spi_master ( input clk ,rst, input  [1:0] secondary_prescalar,input write,read,input  [15:0] user_write_data, input MISO, output reg MOSI, output reg sck, output reg SS, output reg [15:0] user_reads_data , output reg  SPIxRBF, output reg SPIxTBF , output reg SPIROV);
+
+
+//reg SPIxRBF = 1'b0;
+//reg SPIxTBF = 1'b0;
+
+reg [15:0] SPI_SR;
+
+reg [15:0] SPI_TXB,SPI_RXB,SPI_BUF;
+
+//reg SPIROV;
+reg [5:0] count = 5'd0;
+wire sck_temp;
+
+
+reg write_to_TXB_done =0;
+sck_generator sck_1 (.clk(clk),.rst(rst),.secondary_prescalar(secondary_prescalar),.sck(sck_temp));
+
+
+always @(posedge clk ) begin
+                  if(rst) begin
+				      SPIxRBF = 1'b0;
+				      SPIxTBF = 1'b0;
+				       count = 5'd0;
+				      write_to_TXB_done =0;
+				          end
+				  else begin
+  
+
+
+				    if ( (!SPIxTBF)) begin
+                        if (count < 5'b10000) begin
+						      MOSI <= SPI_SR[0];
+       			              SPI_SR <= {MISO,SPI_SR[15:1]};
+			                  count <= count + 1'b1;
+							 
+							  //get_from_SR <= 1'b0;
+							 SS <= 1'b1;
+			                    
+                        end			  
+                        else begin
+						        count = 5'd0;
+                                SS <= 1'b0;
+								SPI_RXB <= SPI_SR;
+                                SPIROV <= 1'b1;
+								SPIxRBF = 1'b1;
+								write_to_TXB_done = 1'b0;
+								//get_from_SR <= 1'b1;
+								//transmit <= 1'b0;
+								
+			            end
+
+                     end				
+			    
+
+                    if (SPIxRBF && read ) begin
+                         SPIxRBF <= 1'b0;
+                       end
+					   
+					   
+					if (  write && !(SPIxTBF)) begin
+                                SPIxTBF <= 1'b1; 					
+                         end
+						 
+						 
+						 
+				     if (write_to_TXB_done  ) begin
+					    SPIxTBF <= 1'b0;
+                         end 
+
+                end // rst
+	 end //always 
+
+always @(*) begin
+
+if (   write && !(SPIxTBF)) begin
+              SPI_BUF = user_write_data;
+              
+			  
+			  end
+
+
+
+
+if ( SPIxTBF )begin
+	             SPI_TXB = SPI_BUF;
+				 write_to_TXB_done = 1'b1;
+	             end
+	  
+	 
+
+// condition to write into SPI_SR
+
+if (write_to_TXB_done  &&  (!SPIxTBF) ) begin
+                     SPI_SR = SPI_TXB;
+					 
+					 
+                       end
+
+
+
+
+
+if (SPIxRBF && read ) begin
+    
+	SPI_BUF = SPI_RXB;
+    user_reads_data = SPI_BUF;
+	
+   
+   end
+
+
+sck = sck_temp;
+end
+
+
+
+
+endmodule
